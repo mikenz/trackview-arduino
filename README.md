@@ -47,3 +47,13 @@ The data is written directly to the SD card, from start to end. The format isnt 
 
 In the future I'll create another project with code to process this data. It will rely on being able to read the SD card via `dd`, Microsoft Windows developers will need to create thier own solution.
 
+
+TODO
+----
+
+* Fix saving data to SD card (currently broken I think)
+* Store the position on the SD card and photo number in EEPROM
+* Continue from previous photo number and SD card position on restart
+* Add reset button to reset photo number and SD card position
+* Add start button to start taking photos instead of starting imediatly
+
