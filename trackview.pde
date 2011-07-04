@@ -36,7 +36,7 @@ THE SOFTWARE.
 #define ENABLE_LCD12864 // Serial LCD12864 128x64 Grahpical display
 
 /* Cameras */
-#define NUM_SLAVES      1
+#define NUM_SLAVES      4
 unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 #define PHOTO_DELAY     500 // milli seconds between finishing a photo and starting the next
 
@@ -123,8 +123,6 @@ uint32_t lastPhoto = 0;
 
 void setup()
 {
-    Serial.begin(38400);
-
     /* Setup the LCD */
     #ifdef ENABLE_LCD12864
         LCDA.Initialise();
@@ -255,8 +253,9 @@ void loop()
         floatToSDCard(ypr[0]);
         floatToSDCard(ypr[1]);
         floatToSDCard(ypr[2]);
+        my3IMU.getYawPitchRoll(ypr);
     #endif /* ENABLE_FREEIMU */
-
+    
     /* Update heading */
     #ifdef ENABLE_HMC6352
         hmc6352.wake();
@@ -278,6 +277,11 @@ void loop()
         longToSDCard(Pressure);
         longToSDCard(Altitude);
     #endif /* ENABLE_BMP085 */
+
+    /* Update the IMU */
+    #ifdef ENABLE_FREEIMU
+        my3IMU.getYawPitchRoll(ypr);
+    #endif /* ENABLE_FREEIMU */
     
     #ifdef ENABLE_LDR
         int ldr = analogRead(LDR_PIN);
@@ -286,6 +290,11 @@ void loop()
         intToSDCard(ldr);
     #endif /* ENABLE_LDR */
     
+    /* Update the IMU */
+    #ifdef ENABLE_FREEIMU
+        my3IMU.getYawPitchRoll(ypr);
+    #endif /* ENABLE_FREEIMU */
+
     /* Update LCD Display */
     #ifdef ENABLE_LCD12864
         /* Update the display every second */
@@ -304,42 +313,42 @@ void loop()
             
                     /* Display new GPS data when we get it */
                     len = floatToString(line, int(lat), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "@", false);
+                    LCDPrintString(2, pos - 1, "@", false);
                     lat *= -1;
             
                     lat = (lat - int(lat)) * 60;
                     len = floatToString(line, int(lat), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "'", false);
+                    LCDPrintString(2, pos - 1, "'", false);
                     
                     lat = (lat - int(lat)) * 60;
                     len = floatToString(line, int(lat), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "\"", false);
-                    LCDPrintString(3, pos, " ", false);
+                    LCDPrintString(2, pos - 1, "\"", false);
+                    LCDPrintString(2, pos, " ", false);
                     pos += 1;
                     
                     len = floatToString(line, int(lon), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "@", false);
+                    LCDPrintString(2, pos - 1, "@", false);
             
                     lon = (lon - int(lon)) * 60;
                     len = floatToString(line, int(lon), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "'", false);
+                    LCDPrintString(2, pos - 1, "'", false);
             
             
                     lon = (lon - int(lon)) * 60;
                     len = floatToString(line, int(lon), 0);
-                    LCDPrintString(3, pos, line, false);
+                    LCDPrintString(2, pos, line, false);
                     pos += len - 1;
-                    LCDPrintString(3, pos - 1, "\"", true);
+                    LCDPrintString(2, pos - 1, "\"", true);
                     
                     alt = (alt > 9999) ? 999 : alt;
                     len = floatToString(line, alt, 0);
@@ -385,9 +394,26 @@ void loop()
                 LCDPrintString(6, 17, line, false);
                 LCDPrintString(6, 20, "@", true);
             #endif /* ENABLE_HMC6352 */
+            
+            #ifdef ENABLE_BMP085
+                len = floatToString(line, (float)Altitude/100.0, 0);
+                LCDPrintString(3, 0, "Alt: 0000m", false);
+                LCDPrintString(3, 11 - len, line, false);
+
+                len = floatToString(line, (float)Temperature/10.0, 1);
+                LCDPrintString(3, 11, "Tmp:", false);
+                LCDPrintString(3, 15, line, false);
+                LCDPrintString(3, 19, "@C", true);
+            #endif /* ENABLE_BMP085 */
+            
+            
         }
     #endif /* ENABLE_LCD12864 */
 
+    /* Update the IMU */
+    #ifdef ENABLE_FREEIMU
+        my3IMU.getYawPitchRoll(ypr);
+    #endif /* ENABLE_FREEIMU */
     
     /* Take a photo */
     if (goprotrigger) {
@@ -479,6 +505,11 @@ void loop()
 
         } 
     }
+
+    /* Update the IMU */
+    #ifdef ENABLE_FREEIMU
+        my3IMU.getYawPitchRoll(ypr);
+    #endif /* ENABLE_FREEIMU */
 }
 
 /**
