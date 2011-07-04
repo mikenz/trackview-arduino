@@ -8,17 +8,17 @@ Hardware
 --------
 
 * [Seeduino Mega](http://nicegear.co.nz/arduino-boards/seeeduino-mega/) running at 3.3v
+* [MicroSD shield](http://www.mindkits.co.nz/store/arduino-compatible/microsd-shield) you'll need to modify this to work on the mega as the SPI pins on the mega are different 
 * [BMP085 Barometric Pressure Sensor](http://www.mindkits.co.nz/store/sensors/barometric-pressure-sensor-bmp085-breakout) - optional
 * [ITG3200 ADXL345 combo board](http://www.mindkits.co.nz/store/sensors/movement-and-position/imu-digital-combo-board-6-degrees-of-freedom-itg3200-adxl345) - optional
 * [HMC5843 Triple Axis Magnetometer Breakout](http://www.mindkits.co.nz/store/sensors/magnetic/triple-axis-magnetometer-breakout-hmc5843) - optional
 * [HMC6352 Compass Module](http://www.mindkits.co.nz/store/sensors/compass-module-hmc6352) - optional
 * LDR - optional
 * Piezo Speaker - optional
-* [ST7920 based 128x64 graphical LCD](http://www.mindkits.co.nz/store/led-lcds/128x64-graphic-lcd)
-* [MicroSD shield](http://www.mindkits.co.nz/store/arduino-compatible/microsd-shield) you'll need to modify this to work on the mega as the SPI pins on the mega are different 
-* Any serial GPS (module) outputting NMEA sentences
+* [ST7920 based 128x64 graphical LCD](http://www.mindkits.co.nz/store/led-lcds/128x64-graphic-lcd) - optional
+* Any serial GPS (module) outputting NMEA sentences - optional
 * 5 x GoPro Hero HD cameras
-* 5 x GoPro slaver boards (see [this thread](http://goprouser.freeforums.org/the-gopro-hero-hd-bus-interface-t797.html) for details)
+* 5 x GoPro Slaver boards (see [this thread](http://goprouser.freeforums.org/the-gopro-hero-hd-bus-interface-t797.html) for details)
 
 
 Software
@@ -27,6 +27,7 @@ Software
 The code in this repo has a bunch of options at the top. You should be able to comment out and of the `ENABLE_` defines at the top if you're not using that particular piece of hardware.
 
 The code relies on a number of other libraries to hand the sensors. They are:
+
 * [TinyGPS](http://arduiniana.org/libraries/tinygps/)
 * [ADXL345](http://code.google.com/p/adxl345driver/source/browse/#svn%2Fbranches%2Ffvaresano)
 * [HMC58X3](https://launchpad.net/hmc58x3)
@@ -44,7 +45,5 @@ The data is written directly to the SD card, from start to end. The format isnt 
         `"G", 5 x floats, 1 x long` is GPS data (lat, lon, alt, ourse, speed, age)
         `"I", 3 x floats` is IMU data (pitch, roll, yaw)
 
-In the future I'll create another project with code to process this data. It will rely on being able to read the SD card via `dd`, windows developers will need to create thier own solution.
-
-
+In the future I'll create another project with code to process this data. It will rely on being able to read the SD card via `dd`, Microsoft Windows developers will need to create thier own solution.
 
