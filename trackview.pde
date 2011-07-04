@@ -38,7 +38,7 @@ THE SOFTWARE.
 /* Cameras */
 #define NUM_SLAVES      4
 unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
-#define PHOTO_DELAY     500 // milli seconds between finishing a photo and starting the next
+#define PHOTO_DELAY     1000 // milli seconds between finishing a photo and starting the next
 
 /* GPS */
 #define GPS_SERIAL      Serial3
@@ -64,7 +64,7 @@ int bufferPos = 0;
 
 /* Global Variables */
 bool goprotrigger = false;
-int photo = 0;
+int photo = 0, retryCount = 0;
 uint32_t lastPhoto = 0;
 
 /* I2C */
@@ -201,7 +201,7 @@ void setup()
     /* Beep */
     #ifdef ENABLE_BEEP
         tone(BEEP_PIN, 2200, 200);
-        delay(5);
+        delay(250);
         tone(BEEP_PIN, 2200, 200);
     #endif /* ENABLE_BEEP */
     
@@ -454,22 +454,55 @@ void loop()
             #endif /* ENABLE_LCD12864 */
 
             #ifdef ENABLE_BEEP
-                tone(BEEP_PIN, 2200, 140);
-                delay(5);
-                tone(BEEP_PIN, 2200, 140);
-            #else
-                delay(300);
+                tone(BEEP_PIN, 2200, 50);
             #endif /* ENABLE_BEEP */
+            delay(300);
             
             /* Back to normal state */
             digitalWrite(GOPRO_ID2, HIGH);
             digitalWrite(GOPRO_ID3, LOW);                
             lastPhoto = millis();
             goprotrigger = false;
+            retryCount = 0;
 
             #ifdef ENABLE_LCD12864
                 LCDPrintString(1, 0, "                          ", true);
             #endif /* ENABLE_LCD12864 */
+        } else if (millis() - lastPhoto > 3000) {
+            /* A camera has taken too long, retry */
+            goprotrigger = false;
+            retryCount++;
+
+            /* Back to normal state */
+            digitalWrite(GOPRO_ID2, HIGH);
+            digitalWrite(GOPRO_ID3, LOW);                
+
+            if (retryCount < 3) {
+                /* Retry again */
+                stringToSDCard("R");
+                intToSDCard(retryCount);
+                
+                #ifdef ENABLE_BEEP
+                    tone(BEEP_PIN, 2200, 50);
+                    delay(55);
+                    tone(BEEP_PIN, 2200, 50);
+                    delay(55);
+                    tone(BEEP_PIN, 2200, 50);
+                    delay(55);
+                    tone(BEEP_PIN, 2200, 50);
+                #else
+                    delay(170);
+                #endif /* ENABLE_BEEP */
+                delay(2000);
+            } else {
+                /* Give up for good */
+                while (true) {
+                    tone(BEEP_PIN, 1800, 800);
+                    delay(1000);
+                }
+            }
+
+            lastPhoto = millis();
         }
     } else if (millis() > lastPhoto + PHOTO_DELAY) {
         /*  Check all cameras are ready */
@@ -498,11 +531,7 @@ void loop()
             digitalWrite(GOPRO_ID2, LOW);
             digitalWrite(GOPRO_ID3, HIGH);
             goprotrigger = true;
-
-            #ifdef ENABLE_BEEP
-                tone(BEEP_PIN, 2200, 100);
-            #endif /* ENABLE_BEEP */
-
+            lastPhoto = millis();
         } 
     }
 
