@@ -49,7 +49,7 @@ unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 #define GOPRO_ID2       28
 #define GOPRO_ID3       29
 #define SS_PIN          53 // SPI pin
-#define LDR_PIN         15
+#define LDR_PIN         A15
 #define BEEP_PIN        4  // Any PWM pin you choose 
 
 /*** End of config ***/
@@ -58,7 +58,7 @@ unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 /* Sd Card */
 #include "SDCARDmodded.h"
 #include <SPI.h>
-unsigned char buffer[512];
+byte buffer[512];
 unsigned long sector = 0;
 int bufferPos = 0;
 
@@ -223,9 +223,9 @@ void loop()
         /* Get time */
         gps.crack_datetime(&year, &month, &day, &hour, &minute, &second, &hundredths, &age);
 
-        char data[7] = {year, month, day, hour, minute, second, hundredths};
+        byte datedata[6] = {byte(month), byte(day), byte(hour), byte(minute), byte(second), byte(hundredths)};
         stringToSDCard("D");
-        addToSDCard(data, 7);
+        intToSDCard(year);
         longToSDCard(age);
                 
         if (newGPSData) {
@@ -389,18 +389,18 @@ void loop()
             #endif /* ENABLE_FREEIMU */
                
             #ifdef ENABLE_HMC6352
-                sprintf(line, "%03d", (int)heading);                
+                sprintf(line, "%03d", int(heading));                
                 LCDPrintString(6, 11, " Hdg: ", false);
                 LCDPrintString(6, 17, line, false);
                 LCDPrintString(6, 20, "@", true);
             #endif /* ENABLE_HMC6352 */
             
             #ifdef ENABLE_BMP085
-                len = floatToString(line, (float)Altitude/100.0, 0);
+                len = floatToString(line, float(Altitude)/100.0, 0);
                 LCDPrintString(3, 0, "Alt: 0000m", false);
                 LCDPrintString(3, 11 - len, line, false);
 
-                len = floatToString(line, (float)Temperature/10.0, 1);
+                len = floatToString(line, float(Temperature)/10.0, 1);
                 LCDPrintString(3, 11, "Tmp:", false);
                 LCDPrintString(3, 15, line, false);
                 LCDPrintString(3, 19, "@C", true);
@@ -445,7 +445,7 @@ void loop()
 
             /* Record to SD Card */
             stringToSDCard("P");
-            longToSDCard(++photo);
+            intToSDCard(++photo);
 
             /* Update LCD */
             #ifdef ENABLE_LCD12864
@@ -547,7 +547,7 @@ void loop()
 void floatToSDCard(float number)
 {
     union u_tag {
-        char c[4];
+        byte c[4];
         float fval;
     } u;
     
@@ -561,7 +561,7 @@ void floatToSDCard(float number)
 void longToSDCard(long number)
 {
     union u_tag {
-        char c[4];
+        byte c[4];
         long lval;
     } u;
     
@@ -575,7 +575,7 @@ void longToSDCard(long number)
 void intToSDCard(int number)
 {
     union u_tag {
-        char c[2];
+        byte c[2];
         int ival;
     } u;
     
@@ -584,25 +584,26 @@ void intToSDCard(int number)
 }
 
 /**
- * Write a string to the SD card, include NULL terminator
+ * Write a string to the SD card
  */
 void stringToSDCard(char * data) 
 {
+    byte data2[10];
     int length = 0;
-    while (data[length]) {
+    while (data[length] && length < 10) {
+        data2[length] = byte(data[length]);
         length++;
     }
-    addToSDCard(data, length);
+    addToSDCard(data2, length - 1);
 }
 
-void addToSDCard(char * data, int length) 
+void addToSDCard(byte * data, int length) 
 {
     int i = 0;
-    while (length) {
-        buffer[bufferPos++] = (byte)data[i];
+    while (i < length) {
+        buffer[bufferPos++] = data[i];
         data[i] = 0;
         i++;
-        length--;
         
         if (bufferPos == 513) {
             /* Write a full block to card */
@@ -650,7 +651,7 @@ void addToSDCard(char * data, int length)
             return;
         }
      
-        if (fontLookup[(int)character] == 0 && (int)character != ' ') {
+        if (fontLookup[byte(character)] == 0 && byte(character) != ' ') {
             /* No character in font */
             return;
         }
@@ -661,7 +662,7 @@ void addToSDCard(char * data, int length)
         /* Add all 10 character rows */
         for (int i = 0; i < FONT_HEIGHT; i++) {
             /* Pixel are in the lower 5 bits */
-            unsigned char pixels = pgm_read_byte_near(fontPixel + (9 * fontLookup[(int)character]) + i);
+            unsigned char pixels = pgm_read_byte_near(fontPixel + (9 * fontLookup[byte(character)]) + i);
             //int pixels = fontPixel[fontLookup[(int)character]][i];
             
             /* Work out what byte this row starts in  */
@@ -694,7 +695,7 @@ void addToSDCard(char * data, int length)
             return;
         }
      
-        if (fontLookup[(int)character] == 0 && (int)character != ' ') {
+        if (fontLookup[byte(character)] == 0 && character != ' ') {
             /* No character in font */
             return;
         }
@@ -705,7 +706,7 @@ void addToSDCard(char * data, int length)
         /* Add all 10 character rows */
         for (int i = 0; i < FONT_HEIGHT; i++) {
             /* Pixel are in the lower 5 bits */
-            unsigned char pixels = 0x1F & ~pgm_read_byte_near(fontPixel + (9 * fontLookup[(int)character]) + i);
+            unsigned char pixels = 0x1F & ~pgm_read_byte_near(fontPixel + (9 * fontLookup[byte(character)]) + i);
             //int pixels = 0x1F & ~fontPixel[fontLookup[(int)character]][i];
             
             /* Work out what byte this row starts in  */
