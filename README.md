@@ -42,7 +42,7 @@ Download all these and put them in you sketchbook/libraries folder (create this 
 The data is written directly to the SD card, from start to end. The format isnt documented yet but the basics are:
     A single character long string followed by a number of float/long/ints.
     eg:
-        `"G", 5 x floats, 1 x long` is GPS data (lat, lon, alt, ourse, speed, age)
+        `"G", 5 x floats, 1 x long` is GPS data (lat, lon, alt, course, speed, age)
         `"I", 3 x floats` is IMU data (pitch, roll, yaw)
 
 In the future I'll create another project with code to process this data. It will rely on being able to read the SD card via `dd`, Microsoft Windows developers will need to create thier own solution.
@@ -51,9 +51,9 @@ In the future I'll create another project with code to process this data. It wil
 TODO
 ----
 
-* Fix saving data to SD card (currently broken I think)
-* Store the position on the SD card and photo number in EEPROM
-* Continue from previous photo number and SD card position on restart
 * Add reset button to reset photo number and SD card position
 * Add start button to start taking photos instead of starting imediatly
+* Add stop button to stop taking photos and flush SD card buffer
+* Flush SD card buffer when retry limit hit
+* Alert/retry when SD card writting fails
 
