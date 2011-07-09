@@ -55,8 +55,8 @@ unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 #define GOLED_PIN       22
 #define RSTLED_PIN      23
 #define STPLED_PIN      24
-#define GOBTN_PIN       40
-#define RSTBTN_PIN      39
+#define GOBTN_PIN       39
+#define RSTBTN_PIN      40
 #define STPBTN_PIN      38
 
 /*** End of config ***/
@@ -128,10 +128,11 @@ uint32_t lastPhoto = 0;
     #include <BMP085.h>
     BMP085 dps = BMP085();
     long Temperature = 0, Pressure = 0, Altitude = 0;
+    uint32_t nextBmp085 = 0;
 #endif /* ENABLE_BMP085 */
 
 void setup()
-{    
+{
     /* Setup the LCD */
     #ifdef ENABLE_LCD12864
         LCDA.Initialise();
@@ -156,7 +157,7 @@ void setup()
             LCDPrintString(3, 0, "Starting IMU       ", true);
         #endif /* ENABLE_LCD12864 */
         delay(100);
-        my3IMU.init(true);
+        my3IMU.init(false);
         delay(500);
         #ifdef ENABLE_LCD12864
             LCDPrintString(3, 0, "Started IMU       ", true);
@@ -166,6 +167,8 @@ void setup()
     /* Start Barometer */
     #if defined(ENABLE_BMP085) && !defined(ENABLE_TINYGPS)
         dps.init(); // Initialise for relative altitude
+        dps.setMode(MODE_ULTRA_LOW_POWER);
+        nextBmp085 = millis() + 1000;
         delay(500);
     #endif /* ENABLE_BMP085 */
 
@@ -195,7 +198,7 @@ void setup()
 
         #if defined(ENABLE_BMP085) && !defined(ENABLE_LEDBUTTONS)
             /* Initialise with actual starting altitude */
-            dps.init(MODE_HIGHRES, gps.altitude(), true);
+            dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
             delay(500);
         #endif /* ENABLE_BMP085 */
     #endif /* ENABLE_TINYGPS */
@@ -223,13 +226,13 @@ void setup()
     #endif /* ENABLE_BEEP */
 
     #ifdef ENABLE_LEDBUTTONS
-        pinMode(GOLED_PIN, OUTPUT);     
-        pinMode(RSTLED_PIN, OUTPUT);     
+        pinMode(GOLED_PIN, OUTPUT);
+        pinMode(RSTLED_PIN, OUTPUT);
         pinMode(STPLED_PIN, OUTPUT);
-        pinMode(GOBTN_PIN, INPUT);     
-        pinMode(RSTBTN_PIN, INPUT);     
-        pinMode(STPBTN_PIN, INPUT);   
-        
+        pinMode(GOBTN_PIN, INPUT);
+        pinMode(RSTBTN_PIN, INPUT);
+        pinMode(STPBTN_PIN, INPUT);
+
         digitalWrite(GOLED_PIN, HIGH);
         digitalWrite(RSTLED_PIN, HIGH);
         digitalWrite(STPLED_PIN, LOW);
@@ -238,7 +241,7 @@ void setup()
             LCDPrintString(3, 0, "Green to start       ", true);
             LCDPrintString(4, 0, "Orange to reset photo", true);
         #endif /* ENABLE_LCD12864 */
-        
+
         while(true) {
             if (digitalRead(RSTBTN_PIN) == 1) {
                 /* Reset */
@@ -259,20 +262,19 @@ void setup()
                 digitalWrite(STPLED_PIN, HIGH);
                 break;
             }
-            
+
             /* Feed GPS and IMU */
             usefulDelay(1);
         }
-    
+
         #if defined(ENABLE_BMP085)
             /* Initialise with GPS altitude */
-            dps.init(MODE_HIGHRES, gps.altitude(), true);
+            dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
             usefulDelay(500);
         #endif /* ENABLE_BMP085 */
     #endif /* ENABLE_LEDBUTTONS */
-    
-    
-    /* Start timers */
+
+    /* Start timer */
     lastPhoto = millis();
 }
 
@@ -282,27 +284,27 @@ void loop()
         #if defined(ENABLE_BMP085)
             if (digitalRead(RSTBTN_PIN) == 1) {
                 /* Re initialise barometer with GPS altitude */
-                dps.init(MODE_HIGHRES, gps.altitude(), true);
+                dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
                 digitalWrite(RSTLED_PIN, HIGH);
                 usefulDelay(500);
                 digitalWrite(RSTLED_PIN, LOW);
             }
         #endif /* ENABLE_BMP085 */
-        
+
         if (digitalRead(STPBTN_PIN) == 1) {
             /* Stop */
             digitalWrite(STPLED_PIN, LOW);
-            
+
             /* Back to normal state */
             digitalWrite(GOPRO_ID2, HIGH);
             digitalWrite(GOPRO_ID3, LOW);
-            
+
             /* Flush SD card write buffer */
             byte null[1] = { 0 };
             while (bufferPos) {
                 addToSDCard(null, 1);
             }
-            
+
             /* Clear screen */
             #ifdef ENABLE_LCD12864
                 LCDPrintString(1, 0, "                     ", true);
@@ -316,15 +318,11 @@ void loop()
             while (true) {};
         }
     #endif /* ENABLE_LEDBUTTONS */
-    
+
     /* GPS */
     #ifdef ENABLE_TINYGPS
         /* Feed the TinyGPS with new data from GPS */
-        while (GPS_SERIAL.available()) {
-            if (gps.encode(GPS_SERIAL.read())) {
-                newGPSData = true;
-            }
-        }
+        usefulDelay(0);
 
         /* Get time */
         gps.crack_datetime(&year, &month, &day, &hour, &minute, &second, &hundredths, &age);
@@ -349,24 +347,26 @@ void loop()
             floatToSDCard(course);
             floatToSDCard(speed);
             longToSDCard(age);
-            
+
             newGPSData = false;
         }
     #endif /* ENABLE_TINYGPS */
 
     /* Update the IMU */
     #ifdef ENABLE_FREEIMU
-        my3IMU.getYawPitchRoll(ypr);
+        usefulDelay(0);
 
         stringToSDCard("I");
         floatToSDCard(ypr[0]);
         floatToSDCard(ypr[1]);
         floatToSDCard(ypr[2]);
-        my3IMU.getYawPitchRoll(ypr);
     #endif /* ENABLE_FREEIMU */
 
     /* Update heading */
     #ifdef ENABLE_HMC6352
+        /* 100kHz I2C on 16Mhz chip */
+        TWBR = 72;
+
         hmc6352.wake();
         heading = hmc6352.getHeading();
         hmc6352.sleep();
@@ -377,20 +377,25 @@ void loop()
 
     /* Update barometer */
     #ifdef ENABLE_BMP085
-        dps.getTemperature(&Temperature);
-        dps.getPressure(&Pressure);
-        dps.getAltitude(&Altitude);
+        if (millis() > nextBmp085) {
+            /* 400kHz I2C on 16Mhz chip */
+            TWBR = 12;
 
-        stringToSDCard("B");
-        longToSDCard(Temperature);
-        longToSDCard(Pressure);
-        longToSDCard(Altitude);
+            dps.getTemperature(&Temperature);
+            dps.getPressure(&Pressure);
+            dps.getAltitude(&Altitude);
+
+            stringToSDCard("B");
+            longToSDCard(Temperature);
+            longToSDCard(Pressure);
+            longToSDCard(Altitude);
+
+            // 1Hz Barometer samples as they are time consuming
+            nextBmp085 = millis() + 1000;
+        }
     #endif /* ENABLE_BMP085 */
 
-    /* Update the IMU */
-    #ifdef ENABLE_FREEIMU
-        my3IMU.getYawPitchRoll(ypr);
-    #endif /* ENABLE_FREEIMU */
+    usefulDelay(0);
 
     #ifdef ENABLE_LDR
         int ldr = analogRead(LDR_PIN);
@@ -399,16 +404,10 @@ void loop()
         intToSDCard(ldr);
     #endif /* ENABLE_LDR */
 
-    /* Update the IMU */
-    #ifdef ENABLE_FREEIMU
-        my3IMU.getYawPitchRoll(ypr);
-    #endif /* ENABLE_FREEIMU */
-
     /* Update LCD Display */
     #ifdef ENABLE_LCD12864
         /* Update the display every second */
         if (millis() - lastTime > 1000) {
-            lastTime = millis();
             int len, pos = 0;
 
             #ifdef ENABLE_TINYGPS
@@ -510,14 +509,11 @@ void loop()
                 LCDPrintString(3, 19, "@C", true);
             #endif /* ENABLE_BMP085 */
 
-
+            lastTime = millis();
         }
     #endif /* ENABLE_LCD12864 */
 
-    /* Update the IMU */
-    #ifdef ENABLE_FREEIMU
-        my3IMU.getYawPitchRoll(ypr);
-    #endif /* ENABLE_FREEIMU */
+    usefulDelay(0);
 
     /* Take a photo */
     if (goprotrigger) {
@@ -564,8 +560,8 @@ void loop()
             #ifdef ENABLE_BEEP
                 tone(BEEP_PIN, 2200, 50);
             #endif /* ENABLE_BEEP */
-            
-            usefulDelay(300);  
+
+            usefulDelay(300);
 
             /* Back to normal state */
             digitalWrite(GOPRO_ID2, HIGH);
@@ -651,11 +647,6 @@ void loop()
             lastPhoto = millis();
         }
     }
-
-    /* Update the IMU */
-    #ifdef ENABLE_FREEIMU
-        my3IMU.getYawPitchRoll(ypr);
-    #endif /* ENABLE_FREEIMU */
 }
 
 /**
@@ -663,7 +654,8 @@ void loop()
  */
 void usefulDelay(int ms) {
     unsigned long delayStart = millis();
-    while (millis() - delayStart < ms) {
+    do {
+        /* Feed TinyGPS with data from GPS */
         #ifdef ENABLE_TINYGPS
             while (GPS_SERIAL.available()) {
                 if (gps.encode(GPS_SERIAL.read())) {
@@ -671,10 +663,14 @@ void usefulDelay(int ms) {
                 }
             }
         #endif /* ENABLE_TINYGPS */
+
+        /* Update IMU data */
         #ifdef ENABLE_FREEIMU
+            /* 400kHz I2C on 16Mhz chip */
+            TWBR = 12;
             my3IMU.getYawPitchRoll(ypr);
         #endif /* ENABLE_FREEIMU */
-    }                
+    } while (millis() - delayStart < ms);
 }
 
 /**
@@ -773,7 +769,7 @@ void addToSDCard(byte * data, int length)
                     LCDPrintString(0, 14, "N", true);
                 }
             #endif /* ENABLE_LCD12864 */
-            
+
             bufferPos = 0;
             sector++;
         }
