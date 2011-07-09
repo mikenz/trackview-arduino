@@ -34,6 +34,7 @@ THE SOFTWARE.
 #define ENABLE_LDR      // LDR for relative light level
 #define ENABLE_BEEP     // Piezo Speaker for audio feedback
 #define ENABLE_LCD12864 // Serial LCD12864 128x64 Grahpical display
+#define ENABLE_LEDBUTTONS // Go/Reset/Stop buttons
 
 /* Cameras */
 #define NUM_SLAVES      5
@@ -51,6 +52,12 @@ unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 #define SS_PIN          53 // SPI pin
 #define LDR_PIN         A15
 #define BEEP_PIN        4  // Any PWM pin you choose
+#define GOLED_PIN       22
+#define RSTLED_PIN      23
+#define STPLED_PIN      24
+#define GOBTN_PIN       40
+#define RSTBTN_PIN      39
+#define STPBTN_PIN      38
 
 /*** End of config ***/
 
@@ -124,7 +131,7 @@ uint32_t lastPhoto = 0;
 #endif /* ENABLE_BMP085 */
 
 void setup()
-{
+{    
     /* Setup the LCD */
     #ifdef ENABLE_LCD12864
         LCDA.Initialise();
@@ -162,6 +169,14 @@ void setup()
         delay(500);
     #endif /* ENABLE_BMP085 */
 
+    /* Continue where we were */
+    sector = eeprom_read_dword((uint32_t *) 0x01);
+    photo  = eeprom_read_dword((uint32_t *) 0x02);
+    #ifdef ENABLE_LCD12864
+        sprintf(line, "Photos: %04d   ", photo);
+        LCDPrintString(0, 0, line, true);
+    #endif /* ENABLE_LCD12864 */
+
     /* Wait for GPS initial data */
     #ifdef ENABLE_TINYGPS
         #ifdef ENABLE_LCD12864
@@ -178,7 +193,7 @@ void setup()
             LCDPrintString(3, 0, "                      ", true);
         #endif /* ENABLE_LCD12864 */
 
-        #ifdef ENABLE_BMP085
+        #if defined(ENABLE_BMP085) && !defined(ENABLE_LEDBUTTONS)
             /* Initialise with actual starting altitude */
             dps.init(MODE_HIGHRES, gps.altitude(), true);
             delay(500);
@@ -200,10 +215,6 @@ void setup()
     digitalWrite(GOPRO_ID2, HIGH);
     digitalWrite(GOPRO_ID3, LOW);
 
-    /* Continue where we were */
-    sector = eeprom_read_dword((uint32_t *) 0x01);
-    photo  = eeprom_read_dword((uint32_t *) 0x02);
-
     /* Beep */
     #ifdef ENABLE_BEEP
         tone(BEEP_PIN, 2200, 200);
@@ -211,12 +222,101 @@ void setup()
         tone(BEEP_PIN, 2200, 200);
     #endif /* ENABLE_BEEP */
 
+    #ifdef ENABLE_LEDBUTTONS
+        pinMode(GOLED_PIN, OUTPUT);     
+        pinMode(RSTLED_PIN, OUTPUT);     
+        pinMode(STPLED_PIN, OUTPUT);
+        pinMode(GOBTN_PIN, INPUT);     
+        pinMode(RSTBTN_PIN, INPUT);     
+        pinMode(STPBTN_PIN, INPUT);   
+        
+        digitalWrite(GOLED_PIN, HIGH);
+        digitalWrite(RSTLED_PIN, HIGH);
+        digitalWrite(STPLED_PIN, LOW);
+
+        #ifdef ENABLE_LCD12864
+            LCDPrintString(3, 0, "Green to start       ", true);
+            LCDPrintString(4, 0, "Orange to reset photo", true);
+        #endif /* ENABLE_LCD12864 */
+        
+        while(true) {
+            if (digitalRead(RSTBTN_PIN) == 1) {
+                /* Reset */
+                photo = 0;
+                sector = 0;
+                eeprom_update_dword((uint32_t *) 0x01, sector);
+                eeprom_update_dword((uint32_t *) 0x02, photo);
+                #ifdef ENABLE_LCD12864
+                    sprintf(line, "Photos: %04d   ", photo);
+                    LCDPrintString(0, 0, line, true);
+                    LCDPrintString(4, 0, "                     ", true);
+                #endif /* ENABLE_LCD12864 */
+                digitalWrite(RSTLED_PIN, LOW);
+            }
+            if (digitalRead(GOBTN_PIN) == 1) {
+                digitalWrite(GOLED_PIN, LOW);
+                digitalWrite(RSTLED_PIN, LOW);
+                digitalWrite(STPLED_PIN, HIGH);
+                break;
+            }
+            
+            /* Feed GPS and IMU */
+            usefulDelay(1);
+        }
+    
+        #if defined(ENABLE_BMP085)
+            /* Initialise with GPS altitude */
+            dps.init(MODE_HIGHRES, gps.altitude(), true);
+            usefulDelay(500);
+        #endif /* ENABLE_BMP085 */
+    #endif /* ENABLE_LEDBUTTONS */
+    
+    
     /* Start timers */
     lastPhoto = millis();
 }
 
 void loop()
 {
+    #ifdef ENABLE_LEDBUTTONS
+        #if defined(ENABLE_BMP085)
+            if (digitalRead(RSTBTN_PIN) == 1) {
+                /* Re initialise barometer with GPS altitude */
+                dps.init(MODE_HIGHRES, gps.altitude(), true);
+                digitalWrite(RSTLED_PIN, HIGH);
+                usefulDelay(500);
+                digitalWrite(RSTLED_PIN, LOW);
+            }
+        #endif /* ENABLE_BMP085 */
+        
+        if (digitalRead(STPBTN_PIN) == 1) {
+            /* Stop */
+            digitalWrite(STPLED_PIN, LOW);
+            
+            /* Back to normal state */
+            digitalWrite(GOPRO_ID2, HIGH);
+            digitalWrite(GOPRO_ID3, LOW);
+            
+            /* Flush SD card write buffer */
+            byte null[1] = { 0 };
+            while (bufferPos) {
+                addToSDCard(null, 1);
+            }
+            
+            /* Clear screen */
+            #ifdef ENABLE_LCD12864
+                LCDPrintString(1, 0, "                     ", true);
+                LCDPrintString(2, 0, "                     ", true);
+                LCDPrintString(3, 0, "       STOPPED       ", true);
+                LCDPrintString(4, 0, "                     ", true);
+                LCDPrintString(5, 0, "                     ", true);
+                LCDPrintString(6, 0, "                     ", true);
+            #endif /* ENABLE_LCD12864 */
+
+            while (true) {};
+        }
+    #endif /* ENABLE_LEDBUTTONS */
+    
     /* GPS */
     #ifdef ENABLE_TINYGPS
         /* Feed the TinyGPS with new data from GPS */
@@ -249,6 +349,8 @@ void loop()
             floatToSDCard(course);
             floatToSDCard(speed);
             longToSDCard(age);
+            
+            newGPSData = false;
         }
     #endif /* ENABLE_TINYGPS */
 
@@ -314,59 +416,54 @@ void loop()
                 sprintf(line, "%02d:%02d\0", hour, minute);
                 LCDPrintString(0, 16, line, true);
 
-                /* Update GPS Data if it has changed */
-                if (newGPSData) {
-                    newGPSData = false;
+                /* Update GPS Data */
+                len = floatToString(line, int(lat), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "@", false);
+                lat *= -1;
 
-                    /* Display new GPS data when we get it */
-                    len = floatToString(line, int(lat), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "@", false);
-                    lat *= -1;
+                lat = (lat - int(lat)) * 60;
+                len = floatToString(line, int(lat), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "'", false);
 
-                    lat = (lat - int(lat)) * 60;
-                    len = floatToString(line, int(lat), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "'", false);
+                lat = (lat - int(lat)) * 60;
+                len = floatToString(line, int(lat), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "\"", false);
+                LCDPrintString(2, pos, " ", false);
+                pos += 1;
 
-                    lat = (lat - int(lat)) * 60;
-                    len = floatToString(line, int(lat), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "\"", false);
-                    LCDPrintString(2, pos, " ", false);
-                    pos += 1;
+                len = floatToString(line, int(lon), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "@", false);
 
-                    len = floatToString(line, int(lon), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "@", false);
-
-                    lon = (lon - int(lon)) * 60;
-                    len = floatToString(line, int(lon), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "'", false);
+                lon = (lon - int(lon)) * 60;
+                len = floatToString(line, int(lon), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "'", false);
 
 
-                    lon = (lon - int(lon)) * 60;
-                    len = floatToString(line, int(lon), 0);
-                    LCDPrintString(2, pos, line, false);
-                    pos += len - 1;
-                    LCDPrintString(2, pos - 1, "\"", true);
+                lon = (lon - int(lon)) * 60;
+                len = floatToString(line, int(lon), 0);
+                LCDPrintString(2, pos, line, false);
+                pos += len - 1;
+                LCDPrintString(2, pos - 1, "\"", true);
 
-                    alt = (alt > 9999) ? 999 : alt;
-                    len = floatToString(line, alt, 0);
-                    LCDPrintString(4, 0, "Alt: 0000m", false);
-                    LCDPrintString(4, 11 - len, line, false);
+                alt = (alt > 9999) ? 999 : alt;
+                len = floatToString(line, alt, 0);
+                LCDPrintString(4, 0, "Alt: 0000m", false);
+                LCDPrintString(4, 11 - len, line, false);
 
-                    course = (course > 360) ? 999 : course;
-                    len = floatToString(line, course, 0);
-                    LCDPrintString(4, 10, " Crse: 000@", false);
-                    LCDPrintString(4, 22 - len, line, true);
-                }
+                course = (course > 360) ? 999 : course;
+                len = floatToString(line, course, 0);
+                LCDPrintString(4, 10, " Crse: 000@", false);
+                LCDPrintString(4, 22 - len, line, true);
             #endif /* ENABLE_TINYGPS */
 
             #ifdef ENABLE_FREEIMU
@@ -404,7 +501,7 @@ void loop()
 
             #ifdef ENABLE_BMP085
                 len = floatToString(line, float(Altitude)/100.0, 0);
-                LCDPrintString(3, 0, "Alt: 0000m", false);
+                LCDPrintString(3, 0, "Alt: 0000m ", false);
                 LCDPrintString(3, 11 - len, line, false);
 
                 len = floatToString(line, float(Temperature)/10.0, 1);
@@ -447,12 +544,12 @@ void loop()
         if (slavesReady == NUM_SLAVES) {
             /* Trigger camera */
             digitalWrite(GOPRO_TRIG, LOW);
-            delay(2);
+            delay(1);
             digitalWrite(GOPRO_TRIG, HIGH);
 
             /* Record to SD Card */
             stringToSDCard("P");
-            intToSDCard(++photo);
+            longToSDCard(++photo);
 
             /* Record to EEPROM */
             eeprom_update_dword((uint32_t *) 0x01, sector);
@@ -467,7 +564,8 @@ void loop()
             #ifdef ENABLE_BEEP
                 tone(BEEP_PIN, 2200, 50);
             #endif /* ENABLE_BEEP */
-            delay(300);
+            
+            usefulDelay(300);  
 
             /* Back to normal state */
             digitalWrite(GOPRO_ID2, HIGH);
@@ -501,15 +599,23 @@ void loop()
                     tone(BEEP_PIN, 2200, 50);
                     delay(55);
                     tone(BEEP_PIN, 2200, 50);
+                    usefulDelay(2000);
                 #else
-                    delay(170);
+                    usefulDelay(2170);
                 #endif /* ENABLE_BEEP */
-                delay(2000);
             } else {
-                /* Give up for good */
+                /* Giving up for good, flush SD card write buffer */
+                byte null[1] = { 0 };
+                while (bufferPos) {
+                    addToSDCard(null, 1);
+                }
+
+                /* Annoying "i'm dead" beep */
                 while (true) {
-                    tone(BEEP_PIN, 1800, 800);
-                    delay(1000);
+                    #ifdef ENABLE_BEEP
+                        tone(BEEP_PIN, 1800, 800);
+                        delay(1000);
+                    #endif /* ENABLE_BEEP */
                 }
             }
 
@@ -550,6 +656,25 @@ void loop()
     #ifdef ENABLE_FREEIMU
         my3IMU.getYawPitchRoll(ypr);
     #endif /* ENABLE_FREEIMU */
+}
+
+/**
+ * Delay x ms but do useful things during the delay
+ */
+void usefulDelay(int ms) {
+    unsigned long delayStart = millis();
+    while (millis() - delayStart < ms) {
+        #ifdef ENABLE_TINYGPS
+            while (GPS_SERIAL.available()) {
+                if (gps.encode(GPS_SERIAL.read())) {
+                    newGPSData = true;
+                }
+            }
+        #endif /* ENABLE_TINYGPS */
+        #ifdef ENABLE_FREEIMU
+            my3IMU.getYawPitchRoll(ypr);
+        #endif /* ENABLE_FREEIMU */
+    }                
 }
 
 /**
@@ -617,16 +742,40 @@ void addToSDCard(byte * data, int length)
         i++;
 
         if (bufferPos == 512) {
-            /* Write a full block to card */
-            int error = SDCARDmodded.writeblock(sector++, SS_PIN);
-            bufferPos = 0;
+            byte sdRetry = 0;
+            int error = 1;
+            while (sdRetry <= 3) {
+                /* Write a full block to card */
+                error = SDCARDmodded.writeblock(sector, SS_PIN);
+                sdRetry++;
+                if (!error) {
+                    /* Save was sucessful */
+                    LCDPrintString(0, 14, "Y", true);
+                    break;
+                } else {
+                    /* Save failed */
+                    #ifdef ENABLE_BEEP
+                        tone(BEEP_PIN, 1800, 50);
+                        delay(55);
+                        tone(BEEP_PIN, 1800, 50);
+                        delay(55);
+                        tone(BEEP_PIN, 1800, 50);
+                    #endif /* ENABLE_BEEP */
+                    if (sdRetry == 3) {
+                        /* Try the next sector as a last resort */
+                        sector++;
+                    }
+                }
+            }
             #ifdef ENABLE_LCD12864
                 if (error) {
+                    /* Save really failed :-( - data lost */
                     LCDPrintString(0, 14, "N", true);
-                } else {
-                    LCDPrintString(0, 14, "Y", true);
                 }
             #endif /* ENABLE_LCD12864 */
+            
+            bufferPos = 0;
+            sector++;
         }
     }
 }
