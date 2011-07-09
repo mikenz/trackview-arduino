@@ -18,7 +18,7 @@ extern "C"
 
 LCD12864RSPI::LCD12864RSPI() 
 {
-this->DEFAULTTIME = 80; // 80 ms default time
+this->DEFAULTTIME = 1; // 80 ms default time
 this->delaytime = DEFAULTTIME;
 } 
 
