@@ -378,8 +378,8 @@ void loop()
     /* Update barometer */
     #ifdef ENABLE_BMP085
         if (millis() > nextBmp085) {
-            /* 400kHz I2C on 16Mhz chip */
-            TWBR = 12;
+            /* I2C as fast as it goes, chip does 3.4MHz! */
+            TWBR = 10;
 
             dps.getTemperature(&Temperature);
             dps.getPressure(&Pressure);
@@ -586,7 +586,11 @@ void loop()
                 /* Retry again */
                 stringToSDCard("R");
                 intToSDCard(retryCount);
-
+        
+                #ifdef ENABLE_LCD12864
+                    LCDPrintString(0, 0, "Camera error", false);
+                #endif /* ENABLE_LCD12864 */
+                
                 #ifdef ENABLE_BEEP
                     tone(BEEP_PIN, 2200, 50);
                     delay(55);
@@ -605,6 +609,14 @@ void loop()
                 while (bufferPos) {
                     addToSDCard(null, 1);
                 }
+                
+                /* Clear screen */
+                LCDPrintString(1, 0, "                     ", true);
+                LCDPrintString(2, 0, "                     ", true);
+                LCDPrintString(3, 0, "     CAMERA FAIL     ", true);
+                LCDPrintString(4, 0, "                     ", true);
+                LCDPrintString(5, 0, "                     ", true);
+                LCDPrintString(6, 0, "                     ", true);
 
                 /* Annoying "i'm dead" beep */
                 while (true) {
@@ -750,6 +762,10 @@ void addToSDCard(byte * data, int length)
                     break;
                 } else {
                     /* Save failed */
+                    #ifdef ENABLE_LCD12864
+                        LCDPrintString(0, 0, "SDCard error", false);
+                    #endif /* ENABLE_LCD12864 */
+
                     #ifdef ENABLE_BEEP
                         tone(BEEP_PIN, 1800, 50);
                         delay(55);
