@@ -281,7 +281,7 @@ void setup()
 void loop()
 {
     #ifdef ENABLE_LEDBUTTONS
-        #if defined(ENABLE_BMP085)
+        #if defined(ENABLE_BMP085) && defined(ENABLE_TINYGPS)
             if (digitalRead(RSTBTN_PIN) == 1) {
                 /* Re initialise barometer with GPS altitude */
                 dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
