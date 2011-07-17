@@ -39,7 +39,7 @@ THE SOFTWARE.
 /* Cameras */
 #define NUM_SLAVES      5
 unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
-#define PHOTO_DELAY     1000 // milli seconds between finishing a photo and starting the next
+#define PHOTO_DELAY     500 // milli seconds between finishing a photo and starting the next
 
 /* GPS */
 #define GPS_SERIAL      Serial3
@@ -291,7 +291,7 @@ void loop()
             }
         #endif /* ENABLE_BMP085 */
 
-        if (digitalRead(STPBTN_PIN) == 1) {
+        if (!goprotrigger && digitalRead(STPBTN_PIN) == 1) {
             /* Stop */
             digitalWrite(STPLED_PIN, LOW);
 
@@ -304,6 +304,10 @@ void loop()
             while (bufferPos) {
                 addToSDCard(null, 1);
             }
+
+            /* Remember where we were up to */
+            eeprom_update_dword((uint32_t *) 0x01, sector);
+            eeprom_update_dword((uint32_t *) 0x02, photo);
 
             /* Clear screen */
             #ifdef ENABLE_LCD12864
@@ -416,53 +420,54 @@ void loop()
                 LCDPrintString(0, 16, line, true);
 
                 /* Update GPS Data */
-                len = floatToString(line, int(lat), 0);
+                float temp = lat;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "@", false);
-                lat *= -1;
+                temp *= -1;
 
-                lat = (lat - int(lat)) * 60;
-                len = floatToString(line, int(lat), 0);
+                temp = (temp - int(temp)) * 60;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "'", false);
 
-                lat = (lat - int(lat)) * 60;
-                len = floatToString(line, int(lat), 0);
+                temp = (temp - int(temp)) * 60;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "\"", false);
                 LCDPrintString(2, pos, " ", false);
                 pos += 1;
 
-                len = floatToString(line, int(lon), 0);
+                temp = lon;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "@", false);
 
-                lon = (lon - int(lon)) * 60;
-                len = floatToString(line, int(lon), 0);
+                temp = (temp - int(temp)) * 60;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "'", false);
 
-
-                lon = (lon - int(lon)) * 60;
-                len = floatToString(line, int(lon), 0);
+                temp = (temp - int(temp)) * 60;
+                len = floatToString(line, int(temp), 0);
                 LCDPrintString(2, pos, line, false);
                 pos += len - 1;
                 LCDPrintString(2, pos - 1, "\"", true);
 
                 alt = (alt > 9999) ? 999 : alt;
                 len = floatToString(line, alt, 0);
-                LCDPrintString(4, 0, "Alt: 0000m", false);
-                LCDPrintString(4, 11 - len, line, false);
+                LCDPrintString(3, 0, "Alt: 0000m", false);
+                LCDPrintString(3, 11 - len, line, false);
 
                 course = (course > 360) ? 999 : course;
                 len = floatToString(line, course, 0);
-                LCDPrintString(4, 10, " Crse: 000@", false);
-                LCDPrintString(4, 22 - len, line, true);
+                LCDPrintString(3, 10, " Crse: 000@", false);
+                LCDPrintString(3, 22 - len, line, true);
             #endif /* ENABLE_TINYGPS */
 
             #ifdef ENABLE_FREEIMU
@@ -500,13 +505,13 @@ void loop()
 
             #ifdef ENABLE_BMP085
                 len = floatToString(line, float(Altitude)/100.0, 0);
-                LCDPrintString(3, 0, "Alt: 0000m ", false);
-                LCDPrintString(3, 11 - len, line, false);
+                LCDPrintString(4, 0, "Alt: 0000m ", false);
+                LCDPrintString(4, 11 - len, line, false);
 
                 len = floatToString(line, float(Temperature)/10.0, 1);
-                LCDPrintString(3, 11, "Tmp:", false);
-                LCDPrintString(3, 15, line, false);
-                LCDPrintString(3, 19, "@C", true);
+                LCDPrintString(4, 11, "Tmp:", false);
+                LCDPrintString(4, 15, line, false);
+                LCDPrintString(4, 19, "@C", true);
             #endif /* ENABLE_BMP085 */
 
             lastTime = millis();
@@ -573,7 +578,7 @@ void loop()
             #ifdef ENABLE_LCD12864
                 LCDPrintString(1, 0, "                          ", true);
             #endif /* ENABLE_LCD12864 */
-        } else if (millis() - lastPhoto > 3000) {
+        } else if (millis() - lastPhoto > 5000) {
             /* A camera has taken too long, retry */
             goprotrigger = false;
             retryCount++;
@@ -609,6 +614,10 @@ void loop()
                 while (bufferPos) {
                     addToSDCard(null, 1);
                 }
+
+                /* Remember where we were up to */
+                eeprom_update_dword((uint32_t *) 0x01, sector);
+                eeprom_update_dword((uint32_t *) 0x02, photo);
                 
                 /* Clear screen */
                 LCDPrintString(1, 0, "                     ", true);
@@ -746,7 +755,7 @@ void addToSDCard(byte * data, int length)
     int i = 0;
     while (i < length) {
         buffer[bufferPos++] = data[i];
-        data[i] = 0;
+        //data[i] = 0;
         i++;
 
         if (bufferPos == 512) {
@@ -766,6 +775,10 @@ void addToSDCard(byte * data, int length)
                         LCDPrintString(0, 0, "SDCard error", false);
                     #endif /* ENABLE_LCD12864 */
 
+                    /* Remember where we were up to */
+                    eeprom_update_dword((uint32_t *) 0x01, sector);
+                    eeprom_update_dword((uint32_t *) 0x02, photo);
+                    
                     #ifdef ENABLE_BEEP
                         tone(BEEP_PIN, 1800, 50);
                         delay(55);
