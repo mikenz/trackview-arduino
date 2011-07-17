@@ -28,7 +28,8 @@ THE SOFTWARE.
 
 /* Sensors */
 #define ENABLE_FREEIMU  // FreeIMU
-#define ENABLE_TINYGPS  // Tiny GPS serial GPS
+//#define ENABLE_TINYGPS  // Tiny GPS serial NMEA
+#define ENABLE_SIRFGPS  // Sirf Binary GPS serial
 #define ENABLE_HMC6352  // HMC6352 I2C compass
 #define ENABLE_BMP085   // BMP085 I2C Barometer
 #define ENABLE_LDR      // LDR for relative light level
@@ -93,6 +94,18 @@ uint32_t lastPhoto = 0;
     unsigned long age;
 #endif /* ENABLE_TINYGPS */
 
+#ifdef ENABLE_SIRFGPS
+    #include "SirfGPS.h"
+    SirfGPS gps;
+    bool newGPSData = false;
+    bool timeUpdated = false;
+    int year;
+    byte month, day, hour, minute, second, hundredths;
+    float lat, lon, alt, course, speed;
+    unsigned long age;
+#endif /* ENABLE_SIRFGPS */
+
+
 /* LCD */
 #ifdef ENABLE_LCD12864
     #include <avr/pgmspace.h>
@@ -145,7 +158,15 @@ void setup()
     #ifdef ENABLE_TINYGPS
         GPS_SERIAL.begin(GPS_BAUD);
     #endif /* ENABLE_TINYGPS */
+    #ifdef ENABLE_SIRFGPS
+        /* Switch to 9600 in SIRF Binary mode */
+        GPS_SERIAL.begin(GPS_BAUD);  
+        GPS_SERIAL.print("$PSRF100,0,9600,8,1,0*0C\r\n");
+        GPS_SERIAL.end();  
+        GPS_SERIAL.begin(9600);  
+    #endif /* ENABLE_SIRFGPS */
 
+    
     /* I2C */
     #if defined(ENABLE_FREEIMU) || defined(ENABLE_BMP085) || defined(ENABLE_HMC6352)
         Wire.begin();
@@ -165,7 +186,7 @@ void setup()
     #endif /* ENABLE_FREEIMU */
 
     /* Start Barometer */
-    #if defined(ENABLE_BMP085) && !defined(ENABLE_TINYGPS)
+    #if defined(ENABLE_BMP085) && !(defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS))
         dps.init(); // Initialise for relative altitude
         dps.setMode(MODE_ULTRA_LOW_POWER);
         nextBmp085 = millis() + 1000;
@@ -181,7 +202,7 @@ void setup()
     #endif /* ENABLE_LCD12864 */
 
     /* Wait for GPS initial data */
-    #ifdef ENABLE_TINYGPS
+    #if defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS)
         #ifdef ENABLE_LCD12864
             LCDPrintString(3, 0, "Waiting for GPS       ", true);
         #endif /* ENABLE_LCD12864 */
@@ -201,7 +222,7 @@ void setup()
             dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
             delay(500);
         #endif /* ENABLE_BMP085 */
-    #endif /* ENABLE_TINYGPS */
+    #endif /* ENABLE_TINYGPS || ENABLE_SIRFGPS */
 
     /* Go Pro Cameras */
     pinMode(GOPRO_TRIG, OUTPUT);
@@ -281,7 +302,7 @@ void setup()
 void loop()
 {
     #ifdef ENABLE_LEDBUTTONS
-        #if defined(ENABLE_BMP085) && defined(ENABLE_TINYGPS)
+        #if defined(ENABLE_BMP085) && (defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS))
             if (digitalRead(RSTBTN_PIN) == 1) {
                 /* Re initialise barometer with GPS altitude */
                 dps.init(MODE_ULTRA_LOW_POWER, gps.altitude(), true);
@@ -324,7 +345,7 @@ void loop()
     #endif /* ENABLE_LEDBUTTONS */
 
     /* GPS */
-    #ifdef ENABLE_TINYGPS
+    #if defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS)
         /* Feed the TinyGPS with new data from GPS */
         usefulDelay(0);
 
@@ -354,7 +375,7 @@ void loop()
 
             newGPSData = false;
         }
-    #endif /* ENABLE_TINYGPS */
+    #endif /* ENABLE_TINYGPS || ENABLE_SIRFGPS */
 
     /* Update the IMU */
     #ifdef ENABLE_FREEIMU
@@ -414,7 +435,7 @@ void loop()
         if (millis() - lastTime > 1000) {
             int len, pos = 0;
 
-            #ifdef ENABLE_TINYGPS
+            #if defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS)
                 /* Update time */
                 sprintf(line, "%02d:%02d\0", hour, minute);
                 LCDPrintString(0, 16, line, true);
@@ -468,7 +489,7 @@ void loop()
                 len = floatToString(line, course, 0);
                 LCDPrintString(3, 10, " Crse: 000@", false);
                 LCDPrintString(3, 22 - len, line, true);
-            #endif /* ENABLE_TINYGPS */
+            #endif /* ENABLE_TINYGPS || ENABLE_SIRFGPS */
 
             #ifdef ENABLE_FREEIMU
                 len, pos = 0;
@@ -677,13 +698,13 @@ void usefulDelay(int ms) {
     unsigned long delayStart = millis();
     do {
         /* Feed TinyGPS with data from GPS */
-        #ifdef ENABLE_TINYGPS
+        #if defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS)
             while (GPS_SERIAL.available()) {
                 if (gps.encode(GPS_SERIAL.read())) {
                     newGPSData = true;
                 }
             }
-        #endif /* ENABLE_TINYGPS */
+        #endif /* ENABLE_TINYGPS || ENABLE_SIRFGPS */
 
         /* Update IMU data */
         #ifdef ENABLE_FREEIMU
