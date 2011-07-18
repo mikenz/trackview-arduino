@@ -1,0 +1,3 @@
+SDCARDmodded	KEYWORD1
+readblock	KEYWORD2
+writeblock	KEYWORD2
