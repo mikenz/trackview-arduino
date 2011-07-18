@@ -18,11 +18,11 @@ extern "C"
 
 LCD12864RSPI::LCD12864RSPI() 
 {
-this->DEFAULTTIME = 80; // 80 ms default time
+this->DEFAULTTIME = 1; // 80 ms default time
 this->delaytime = DEFAULTTIME;
 } 
 
-//*********************ÑÓÊ±º¯Êý************************//
+//*********************Ê±************************//
 void LCD12864RSPI::delayns(void)
 {   
 delayMicroseconds(delaytime);
@@ -42,11 +42,11 @@ void LCD12864RSPI::WriteCommand(int CMD)
 {
    int H_data,L_data;
    H_data = CMD;
-   H_data &= 0xf0;           //ÆÁ±ÎµÍ4Î»µÄÊý¾Ý
-   L_data = CMD;             //xxxx0000¸ñÊ½
-   L_data &= 0x0f;           //ÆÁ±Î¸ß4Î»µÄÊý¾Ý
-   L_data <<= 4;             //xxxx0000¸ñÊ½
-   WriteByte(0xf8);          //RS=0£¬Ð´ÈëµÄÊÇÖ¸Áî£»
+   H_data &= 0xf0;           //4
+   L_data = CMD;             //xxxx0000Ê½
+   L_data &= 0x0f;           //Î¸4
+   L_data <<= 4;             //xxxx0000Ê½
+   WriteByte(0xf8);          //RS=0Ð´
    WriteByte(H_data);
    WriteByte(L_data);
 }
@@ -56,11 +56,11 @@ void LCD12864RSPI::WriteData(int CMD)
 {
    int H_data,L_data;
    H_data = CMD;
-   H_data &= 0xf0;           //ÆÁ±ÎµÍ4Î»µÄÊý¾Ý
-   L_data = CMD;             //xxxx0000¸ñÊ½
-   L_data &= 0x0f;           //ÆÁ±Î¸ß4Î»µÄÊý¾Ý
-   L_data <<= 4;             //xxxx0000¸ñÊ½
-   WriteByte(0xfa);          //RS=1£¬Ð´ÈëµÄÊÇÊý¾Ý
+   H_data &= 0xf0;           //4
+   L_data = CMD;             //xxxx0000Ê½
+   L_data &= 0x0f;           //Î¸4
+   L_data <<= 4;             //xxxx0000Ê½
+   WriteByte(0xfa);          //RS=1Ð´
    WriteByte(H_data);
    WriteByte(L_data);
 }
@@ -75,21 +75,21 @@ void LCD12864RSPI::Initialise()
     digitalWrite(latchPin, LOW);
     delayns();
 
-    WriteCommand(0x30);        //¹¦ÄÜÉè¶¨¿ØÖÆ×Ö
-    WriteCommand(0x0c);        //ÏÔÊ¾¿ª¹Ø¿ØÖÆ×Ö
-    WriteCommand(0x01);        //Çå³ýÆÁÄ»¿ØÖÆ×Ö
-    WriteCommand(0x06);        //½øÈëÉè¶¨µã¿ØÖÆ×Ö
+    WriteCommand(0x30);        //è¶¨
+    WriteCommand(0x0c);        //Ê¾Ø¿
+    WriteCommand(0x01);        //Ä»
+    WriteCommand(0x06);        //è¶¨
 }
 
 
 void LCD12864RSPI::CLEAR(void)
 {  
     WriteCommand(0x30);//
-    WriteCommand(0x01);//Çå³ýÏÔÊ¾
+    WriteCommand(0x01);//Ê¾
 }
 
 
-void LCD12864RSPI::DisplayString(int X,int Y,uchar *ptr,int dat)
+void LCD12864RSPI::DisplayString(int X,int Y, char *ptr,int dat)
 {
   int i;
 
@@ -106,11 +106,11 @@ void LCD12864RSPI::DisplayString(int X,int Y,uchar *ptr,int dat)
      default: break;
    }
 
-  WriteCommand(Y); // ¶¨Î»ÏÔÊ¾ÆðÊ¼µØÖ·
+  WriteCommand(Y); // Ê¾Ê¼Ö·
 
   for(i=0;i<dat;i++)
     { 
-      WriteData(ptr[i]);//ÏÔÊ¾ºº×ÖÊ±×¢ÒâÂëÖµ£¬Á¬ÐøÁ½¸öÂë±íÊ¾Ò»¸öºº×Ö
+      WriteData((unsigned int)ptr[i]);//Ê¾Ê±×¢ÖµÊ¾Ò»
     }
 }
 
@@ -130,8 +130,8 @@ void LCD12864RSPI::DisplaySig(int M,int N,int sig)
 
      default: break;
    }
-  WriteCommand(N); // ¶¨Î»ÏÔÊ¾ÆðÊ¼µØÖ·
-  WriteData(sig); //Êä³öµ¥¸ö×Ö·û
+  WriteCommand(N); // Ê¾Ê¼Ö·
+  WriteData(sig); //Ö·
  }
 
 
@@ -139,36 +139,56 @@ void LCD12864RSPI::DisplaySig(int M,int N,int sig)
 
 void LCD12864RSPI::DrawFullScreen(uchar *p)
 {
-      int ygroup,x,y,i;
-      int temp;
-      int tmp;
-             
-      for(ygroup=0;ygroup<64;ygroup++)           //Ð´ÈëÒº¾§ÉÏ°ëÍ¼Ïó²¿·Ö
-        {                           //Ð´Èë×ø±ê
-           if(ygroup<32)
-            {
-             x=0x80;
-             y=ygroup+0x80;
-            }
-           else 
-            {
-              x=0x88;
-              y=ygroup-32+0x80;    
-            }         
-           WriteCommand(0x34);        //Ð´ÈëÀ©³äÖ¸ÁîÃüÁî
-           WriteCommand(y);           //Ð´ÈëyÖá×ø±ê
-           WriteCommand(x);           //Ð´ÈëxÖá×ø±ê
-           WriteCommand(0x30);        //Ð´Èë»ù±¾Ö¸ÁîÃüÁî
-           tmp=ygroup*16;
-           for(i=0;i<16;i++)
-		 {
-		    temp=p[tmp++];
+    int row, x, y, i;
+    int temp;
+    int tmp;
+     
+    for (row = 0; row < 64; row++) {                           //Ð´
+        if (row < 32) {
+            x = 0x80;
+            y = row+0x80;
+        } else {
+            x = 0x88;
+            y = row - 32 + 0x80;    
+        }         
+        WriteCommand(0x34);
+        WriteCommand(y);
+        WriteCommand(x);
+        WriteCommand(0x30);
+        tmp = row * 16;
+        for(i = 0; i < 16; i++) {
+		    temp = p[tmp++];
 		    WriteData(temp);
-               }
-          }
-        WriteCommand(0x34);        //Ð´ÈëÀ©³äÖ¸ÁîÃüÁî
-        WriteCommand(0x36);        //ÏÔÊ¾Í¼Ïó
+        }
+    }
+    WriteCommand(0x34);
+    WriteCommand(0x36);
 }
 
+void LCD12864RSPI::DrawScreenRow(uchar *p, int rowStart = 0)
+{
+    int row, x, y;
+    int temp;
+    int tmp;
+     
+    for (row = rowStart; row < rowStart + 9; row++) {
+        if (row < 32) {
+            x = 0x80;
+            y = row + 0x80;
+        } else {
+            x = 0x88;
+            y = row - 32 + 0x80;    
+        }         
+        
+        WriteCommand(y);
+        WriteCommand(x);
+
+        tmp = row * 16;
+        for (int i = 0; i < 16; i++) {
+		    temp = p[tmp++];
+		    WriteData(temp);
+        }
+    }
+}
 
 LCD12864RSPI LCDA = LCD12864RSPI();
