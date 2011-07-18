@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 //uncomment the following line if you are using this library with the HMC5843
-//#define ISHMC5843
+#define ISHMC5843
 
 #include "WProgram.h"
 #include <Wire.h>
