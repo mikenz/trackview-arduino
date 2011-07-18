@@ -175,11 +175,11 @@ void showall(void) {
         break;        
   }
 	
-  Serial.print("X offset                        = ");  
+  Serial.print("X offset (raw)                  = ");  
   Serial.println(gyro.offsets[0]);
-  Serial.print("Y offset                        = ");  
+  Serial.print("Y offset (raw)                  = ");  
   Serial.println(gyro.offsets[1]);
-  Serial.print("Z offset                        = ");  
+  Serial.print("Z offset (raw)                  = ");  
   Serial.println(gyro.offsets[2]);
 }
 

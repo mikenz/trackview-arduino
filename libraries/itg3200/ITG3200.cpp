@@ -28,11 +28,9 @@
 #include "ITG3200.h"
 #include <Wire.h>
 
-
 ITG3200::ITG3200() {
-  setGains(1.0,1.0,1.0);
-  setOffsets(0.0,0.0,0.0);
-  setRevPolarity(0,0,0);
+  setOffsets(0,0,0);
+  setScaleFactor(1.0, 1.0, 1.0, false);  // true to change readGyro output to radians
   //Wire.begin();       //Normally this code is called from setup() at user code
                         //but some people reported that joining I2C bus earlier
                         //apparently solved problems with master/slave conditions.
@@ -178,60 +176,73 @@ bool ITG3200::isRawDataReady() {
 
 void ITG3200::readTemp(float *_Temp) {
   readmem(TEMP_OUT,2,_buff);
-  *_Temp = 35 + (((_buff[0] << 8) | _buff[1]) + 13200) / 280.0;    // F=C*9/5+32  
+  *_Temp = 35 + ((_buff[0] << 8 | _buff[1]) + 13200) / 280.0;    // F=C*9/5+32
 }
 
-void ITG3200::readGyroRaw( unsigned int *_GyroXYZ){
+void ITG3200::readGyroRaw( int *_GyroX, int *_GyroY, int *_GyroZ){
+  readmem(GYRO_XOUT, 6, _buff);
+  *_GyroX = _buff[0] << 8 | _buff[1];
+  *_GyroY = _buff[2] << 8 | _buff[3]; 
+  *_GyroZ = _buff[4] << 8 | _buff[5];
+}
+
+void ITG3200::readGyroRaw( int *_GyroXYZ){
   readGyroRaw(_GyroXYZ, _GyroXYZ+1, _GyroXYZ+2);
 }
 
-void ITG3200::readGyroRaw( unsigned int *_GyroX, unsigned int *_GyroY, unsigned int *_GyroZ){
-  readmem(GYRO_XOUT, 6, _buff);
-  *_GyroX = ((_buff[0] << 8) | _buff[1]);
-  *_GyroY = ((_buff[2] << 8) | _buff[3]); 
-  *_GyroZ = ((_buff[4] << 8) | _buff[5]);
+void ITG3200::setScaleFactor(float _Xcoeff, float _Ycoeff, float _Zcoeff, bool _Radians) { 
+  scalefactor[0] = 14.375 * _Xcoeff;   
+  scalefactor[1] = 14.375 * _Ycoeff;
+  scalefactor[2] = 14.375 * _Zcoeff;    
+    
+  if (_Radians){
+    scalefactor[0] /= 0.0174532925;//0.0174532925 = PI/180
+    scalefactor[1] /= 0.0174532925;
+    scalefactor[2] /= 0.0174532925;
+  }
 }
 
-void ITG3200::setRevPolarity(bool _Xpol, bool _Ypol, bool _Zpol) {
-  polarities[0] = _Xpol ? -1 : 1;
-  polarities[1] = _Ypol ? -1 : 1;
-  polarities[2] = _Zpol ? -1 : 1;
-}
-
-void ITG3200::setGains(float _Xgain, float _Ygain, float _Zgain) {
-  gains[0] = _Xgain;
-  gains[1] = _Ygain;
-  gains[2] = _Zgain;
-}
-
-void ITG3200::setOffsets(float _Xoffset, float _Yoffset, float _Zoffset) {
+void ITG3200::setOffsets(int _Xoffset, int _Yoffset, int _Zoffset) {
   offsets[0] = _Xoffset;
   offsets[1] = _Yoffset;
   offsets[2] = _Zoffset;
 }
 
 void ITG3200::zeroCalibrate(unsigned int totSamples, unsigned int sampleDelayMS) {
-  float xyz[3], tmpOffsets[] = {0,0,0};
+  float tmpOffsets[] = {0,0,0};
+  int xyz[3];
 
   for (int i = 0;i < totSamples;i++){
     delay(sampleDelayMS);
-    readGyro(xyz);
+    readGyroRaw(xyz);
     tmpOffsets[0] += xyz[0];
     tmpOffsets[1] += xyz[1];
-    tmpOffsets[2] += xyz[2];        
+    tmpOffsets[2] += xyz[2];
   }
-  setOffsets(-tmpOffsets[0] / totSamples, -tmpOffsets[1] / totSamples, -tmpOffsets[2] / totSamples);
+  setOffsets(-tmpOffsets[0] / totSamples + 0.5, -tmpOffsets[1] / totSamples + 0.5, -tmpOffsets[2] / totSamples + 0.5);
 }
+
+void ITG3200::readGyroRawCal(int *_GyroX, int *_GyroY, int *_GyroZ) { 
+  readGyroRaw(_GyroX, _GyroY, _GyroZ); 
+  *_GyroX += offsets[0]; 
+  *_GyroY += offsets[1]; 
+  *_GyroZ += offsets[2]; 
+} 
+
+void ITG3200::readGyroRawCal(int *_GyroXYZ) { 
+  readGyroRawCal(_GyroXYZ, _GyroXYZ+1, _GyroXYZ+2); 
+} 
+
+void ITG3200::readGyro(float *_GyroX, float *_GyroY, float *_GyroZ){
+  int x, y, z; 
+  readGyroRawCal(&x, &y, &z); // x,y,z will contain calibrated integer values from the sensor 
+  *_GyroX =  x / scalefactor[0]; 
+  *_GyroY =  y / scalefactor[1]; 
+  *_GyroZ =  z / scalefactor[2];     
+} 
 
 void ITG3200::readGyro(float *_GyroXYZ){
   readGyro(_GyroXYZ, _GyroXYZ+1, _GyroXYZ+2);
-}
-
-void ITG3200::readGyro(float *_GyroX, float *_GyroY, float *_GyroZ){
-  readmem(GYRO_XOUT, 6, _buff);
-  *_GyroX = (((_buff[0] << 8) | _buff[1]) / 14.375 * polarities[0] * gains[0] + offsets[0]);
-  *_GyroY = (((_buff[2] << 8) | _buff[3]) / 14.375 * polarities[1] * gains[1] + offsets[1]); 
-  *_GyroZ = (((_buff[4] << 8) | _buff[5]) / 14.375 * polarities[2] * gains[2] + offsets[2]);
 }
 
 void ITG3200::reset() {     

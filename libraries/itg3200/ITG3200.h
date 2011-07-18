@@ -21,7 +21,7 @@
 * Tested on Arduino Mega with ITG-3200 Breakout                             *
 * SCL     -> pin 21     (no pull up resistors)                              *
 * SDA     -> pin 20     (no pull up resistors)                              *
-* CLK & GND -> pin GND                                                    *
+* CLK & GND -> pin GND                                                      *
 * INT       -> not connected  (but can be used)                             *
 * VIO & VDD -> pin 3.3V                                                     *
 *****************************************************************************/
@@ -37,7 +37,6 @@
 // One device should have pin9 (or bit0) LOW and the other should be HIGH." source: ITG3200 datasheet
 // Note that pin9 (AD0 - I2C Slave Address LSB) may not be available on some breakout boards so check 
 // the schematics of your breakout board for the correct address to use.
-
 
 #define GYROSTART_UP_DELAY  70    // 50ms from gyro startup + 20ms register r/w startup
 
@@ -112,9 +111,8 @@
 class ITG3200 {
 
 public:
-  float gains[3]; 
-  float offsets[3];
-  float polarities[3];
+  float scalefactor[3];    // Scale Factor for gain and polarity
+  int offsets[3];
 
   ITG3200();
   
@@ -154,15 +152,16 @@ public:
   bool isITGReady();
   bool isRawDataReady();
   // Gyro Sensors
-  void readTemp(float *_Temp);
-  void readGyroRaw( unsigned int  *_GyroXYZ);
-  void readGyroRaw( unsigned int *_GyroX, unsigned int *_GyroY, unsigned int *_GyroZ);
-  void setRevPolarity(bool _Xpol, bool _Ypol, bool _Zpol);	// true = Reversed  false = default
-  void setGains(float _Xgain, float _Ygain, float _Zgain);
-  void setOffsets(float _Xoffset, float _Yoffset, float _Zoffset);
-  void zeroCalibrate(unsigned int totSamples, unsigned int sampleDelayMS);	// assuming gyroscope is stationary (updates XYZ offsets for zero)
-  void readGyro(float *_GyroXYZ); // includes gain and offset
-  void readGyro(float *_GyroX, float *_GyroY, float *_GyroZ); // includes gain and offset    
+  void readTemp(float *_Temp);  
+  void readGyroRaw( int *_GyroX, int *_GyroY, int *_GyroZ); // uncalibrated raw values
+  void readGyroRaw( int *_GyroXYZ); // uncalibrated raw values
+  void setScaleFactor(float _Xcoeff, float _Ycoeff, float _Zcoeff, bool _Radians);  // negative ciefficient = Reversed
+  void setOffsets(int _Xoffset, int _Yoffset, int _Zoffset);
+  void zeroCalibrate(unsigned int totSamples, unsigned int sampleDelayMS);	// assuming gyroscope is stationary (updates XYZ offsets)
+  void readGyroRawCal(int *_GyroX, int *_GyroY, int *_GyroZ); // raw value with offset
+  void readGyroRawCal(int *_GyroXYZ); // raw value with offset
+  void readGyro(float *_GyroX, float *_GyroY, float *_GyroZ); // deg/sec calibrated & ScaleFactor 
+  void readGyro(float *_GyroXYZ); // deg/sec calibrated & ScaleFactor  
   // Power management
   void reset(); // after reset all registers have default values
   bool isLowPower();
