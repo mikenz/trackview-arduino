@@ -89,7 +89,7 @@ void LCD12864RSPI::CLEAR(void)
 }
 
 
-void LCD12864RSPI::DisplayString(int X,int Y,uchar *ptr,int dat)
+void LCD12864RSPI::DisplayString(int X,int Y, char *ptr,int dat)
 {
   int i;
 

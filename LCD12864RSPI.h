@@ -24,7 +24,7 @@ void WriteData(int CMD);
 
 
 void CLEAR(void);
-void DisplayString(int X,int Y,uchar *ptr,int dat);
+void DisplayString(int X,int Y,char *ptr,int dat);
 void DisplaySig(int M,int N,int sig);
 void DrawFullScreen(uchar *p);
 void DrawScreenRow(uchar *p, int rowStart);

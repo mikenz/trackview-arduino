@@ -116,6 +116,7 @@ uint32_t lastPhoto = 0;
     char line[70];
     unsigned char screenBuffer[1024];
     uint32_t lastTime = 0;
+    bool fullRedraw = false;
 #endif /* ENABLE_LCD12864 */
 
 /* IMU */
@@ -302,6 +303,21 @@ void setup()
 void loop()
 {
     #ifdef ENABLE_LEDBUTTONS
+        #ifdef ENABLE_LCD12864
+            if (digitalRead(GOBTN_PIN) == 1) {
+                if (!fullRedraw) {
+                    sprintf(line, "Photos: %04d    ", photo);
+                    LCDA.Initialise();
+                    LCDA.DisplayString(0, 0, line, 16);
+                    LCDA.DisplayString(1, 0, line, 16);
+                    LCDA.DisplayString(2, 0, line, 16);
+                    LCDA.DisplayString(3, 0, line, 16);
+                    fullRedraw = true;
+                }
+                lastTime = millis();
+            }
+        #endif /* ENABLE_LCD12864 */
+
         #if defined(ENABLE_BMP085) && (defined(ENABLE_TINYGPS) || defined(ENABLE_SIRFGPS))
             if (digitalRead(RSTBTN_PIN) == 1) {
                 /* Re initialise barometer with GPS altitude */
@@ -536,6 +552,15 @@ void loop()
             #endif /* ENABLE_BMP085 */
 
             lastTime = millis();
+            if (fullRedraw) {
+                LCDA.CLEAR();
+
+                sprintf(line, "Photos: %04d   ", photo);
+                LCDPrintString(0, 0, line, false);
+
+                LCDA.DrawFullScreen(screenBuffer);
+                fullRedraw = false;
+            }
         }
     #endif /* ENABLE_LCD12864 */
 
