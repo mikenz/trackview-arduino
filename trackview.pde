@@ -68,7 +68,7 @@ unsigned char GOPRO_SLAVES[] = {30, 31, 32, 33, 34};
 #include "SDCARDmodded.h"
 #include <SPI.h>
 byte buffer[512];
-unsigned long sector = 0;
+uint32_t sector = 0;
 int bufferPos = 0;
 
 /* Global Variables */
@@ -196,7 +196,7 @@ void setup()
 
     /* Continue where we were */
     sector = eeprom_read_dword((uint32_t *) 0x01);
-    photo  = eeprom_read_dword((uint32_t *) 0x02);
+    photo  = eeprom_read_dword((uint32_t *) 0x05);
     #ifdef ENABLE_LCD12864
         sprintf(line, "Photos: %04d   ", photo);
         LCDPrintString(0, 0, line, true);
@@ -270,7 +270,7 @@ void setup()
                 photo = 0;
                 sector = 0;
                 eeprom_update_dword((uint32_t *) 0x01, sector);
-                eeprom_update_dword((uint32_t *) 0x02, photo);
+                eeprom_update_dword((uint32_t *) 0x05, photo);
                 #ifdef ENABLE_LCD12864
                     sprintf(line, "Photos: %04d   ", photo);
                     LCDPrintString(0, 0, line, true);
@@ -344,7 +344,7 @@ void loop()
 
             /* Remember where we were up to */
             eeprom_update_dword((uint32_t *) 0x01, sector);
-            eeprom_update_dword((uint32_t *) 0x02, photo);
+            eeprom_update_dword((uint32_t *) 0x05, photo);
 
             /* Clear screen */
             #ifdef ENABLE_LCD12864
@@ -405,9 +405,6 @@ void loop()
 
     /* Update heading */
     #ifdef ENABLE_HMC6352
-        /* 100kHz I2C on 16Mhz chip */
-        TWBR = 72;
-
         hmc6352.wake();
         heading = hmc6352.getHeading();
         hmc6352.sleep();
@@ -419,9 +416,6 @@ void loop()
     /* Update barometer */
     #ifdef ENABLE_BMP085
         if (millis() > nextBmp085) {
-            /* I2C as fast as it goes, chip does 3.4MHz! */
-            TWBR = 10;
-
             dps.getTemperature(&Temperature);
             dps.getPressure(&Pressure);
             dps.getAltitude(&Altitude);
@@ -600,7 +594,7 @@ void loop()
 
             /* Record to EEPROM */
             eeprom_update_dword((uint32_t *) 0x01, sector);
-            eeprom_update_dword((uint32_t *) 0x02, photo);
+            eeprom_update_dword((uint32_t *) 0x05, photo);
 
             /* Update LCD */
             #ifdef ENABLE_LCD12864
@@ -663,7 +657,7 @@ void loop()
 
                 /* Remember where we were up to */
                 eeprom_update_dword((uint32_t *) 0x01, sector);
-                eeprom_update_dword((uint32_t *) 0x02, photo);
+                eeprom_update_dword((uint32_t *) 0x05, photo);
                 
                 /* Clear screen */
                 LCDPrintString(1, 0, "                     ", true);
@@ -734,7 +728,6 @@ void usefulDelay(int ms) {
         /* Update IMU data */
         #ifdef ENABLE_FREEIMU
             /* 400kHz I2C on 16Mhz chip */
-            TWBR = 12;
             my3IMU.getYawPitchRoll(ypr);
         #endif /* ENABLE_FREEIMU */
     } while (millis() - delayStart < ms);
@@ -801,7 +794,6 @@ void addToSDCard(byte * data, int length)
     int i = 0;
     while (i < length) {
         buffer[bufferPos++] = data[i];
-        //data[i] = 0;
         i++;
 
         if (bufferPos == 512) {
@@ -823,7 +815,7 @@ void addToSDCard(byte * data, int length)
 
                     /* Remember where we were up to */
                     eeprom_update_dword((uint32_t *) 0x01, sector);
-                    eeprom_update_dword((uint32_t *) 0x02, photo);
+                    eeprom_update_dword((uint32_t *) 0x05, photo);
                     
                     #ifdef ENABLE_BEEP
                         tone(BEEP_PIN, 1800, 50);
@@ -894,7 +886,6 @@ void addToSDCard(byte * data, int length)
         for (int i = 0; i < FONT_HEIGHT; i++) {
             /* Pixel are in the lower 5 bits */
             unsigned char pixels = pgm_read_byte_near(fontPixel + (9 * fontLookup[byte(character)]) + i);
-            //int pixels = fontPixel[fontLookup[(int)character]][i];
 
             /* Work out what byte this row starts in  */
             int startByte = (i + (row * FONT_HEIGHT) + 1) * 16;
@@ -938,7 +929,6 @@ void addToSDCard(byte * data, int length)
         for (int i = 0; i < FONT_HEIGHT; i++) {
             /* Pixel are in the lower 5 bits */
             unsigned char pixels = 0x1F & ~pgm_read_byte_near(fontPixel + (9 * fontLookup[byte(character)]) + i);
-            //int pixels = 0x1F & ~fontPixel[fontLookup[(int)character]][i];
 
             /* Work out what byte this row starts in  */
             int startByte = (i + (row * FONT_HEIGHT) + 1) * 16;
